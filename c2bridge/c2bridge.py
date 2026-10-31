@@ -108,6 +108,16 @@ class C2Bridge(commands.Cog):
             cid = int(item["channel_id"])
         except (KeyError, ValueError):
             return True
+        if item.get("kind") == "dm":  # Direktnachricht an einen verknüpften Nutzer (channel_id = Discord-Nutzer-ID)
+            try:
+                user = self.bot.get_user(cid) or await self.bot.fetch_user(cid)
+                for part in _chunks(item.get("text", "")):
+                    await user.send(part, allowed_mentions=discord.AllowedMentions.none())
+                return True
+            except (discord.NotFound, discord.Forbidden):
+                return True  # Nutzer unbekannt oder DMs gesperrt – nicht endlos wiederholen
+            except discord.HTTPException:
+                return False
         channel = self.bot.get_channel(cid)
         if channel is None:
             try:
