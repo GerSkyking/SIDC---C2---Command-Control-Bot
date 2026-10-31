@@ -21,6 +21,7 @@ log = logging.getLogger("red.c2bridge")
 PROVIDER = "discord"
 OUTBOX_INTERVAL = 2.0
 LINKS_INTERVAL = 30.0
+CHANNELS_INTERVAL = 120.0
 MAX_MSG = 1900  # Discord erlaubt 2000 Zeichen
 
 
@@ -46,6 +47,7 @@ class C2Bridge(commands.Cog):
         self._tasks = [
             asyncio.create_task(self._outbox_loop()),
             asyncio.create_task(self._links_loop()),
+            asyncio.create_task(self._channels_loop()),
             asyncio.create_task(self._enable_slash()),
         ]
 
@@ -138,6 +140,24 @@ class C2Bridge(commands.Cog):
             except Exception:  # noqa: BLE001
                 log.exception("Link-Abgleich fehlgeschlagen")
             await asyncio.sleep(LINKS_INTERVAL)
+
+    async def _channels_loop(self) -> None:
+        """Meldet alle Textkanäle, in denen der Bot lesen und schreiben darf – Auswahlliste im Admin-Bereich der Seite."""
+        await self.bot.wait_until_ready()
+        while True:
+            try:
+                channels = [
+                    {"id": str(ch.id), "name": ch.name, "group_id": str(g.id), "group_name": g.name}
+                    for g in self.bot.guilds
+                    for ch in g.text_channels
+                    if g.me is not None and ch.permissions_for(g.me).view_channel and ch.permissions_for(g.me).send_messages
+                ][:5000]
+                await self._api("POST", "/bridge/channels", json={"provider": PROVIDER, "channels": channels})
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001
+                log.exception("Kanalliste konnte nicht gemeldet werden")
+            await asyncio.sleep(CHANNELS_INTERVAL)
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
