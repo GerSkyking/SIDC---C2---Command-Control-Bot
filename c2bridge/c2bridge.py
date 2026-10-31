@@ -92,9 +92,16 @@ class C2Bridge(commands.Cog):
             try:
                 status, items = await self._api("GET", "/bridge/outbox", params={"provider": PROVIDER})
                 if status == 200 and isinstance(items, list) and items:
-                    done = [i["id"] for i in items if await self._deliver(i)]
+                    done: list[str] = []
+                    refs: dict[str, str] = {}
+                    for i in items:
+                        ok, mid = await self._deliver(i)
+                        if ok:
+                            done.append(i["id"])
+                            if mid:
+                                refs[i["id"]] = str(mid)
                     if done:
-                        await self._api("POST", "/bridge/outbox/ack", json={"ids": done})
+                        await self._api("POST", "/bridge/outbox/ack", json={"ids": done, "refs": refs})
                 await asyncio.sleep(OUTBOX_INTERVAL if status == 200 else 10)
             except asyncio.CancelledError:
                 raise
@@ -102,39 +109,42 @@ class C2Bridge(commands.Cog):
                 log.exception("Outbox-Lauf fehlgeschlagen")
                 await asyncio.sleep(10)
 
-    async def _deliver(self, item: dict) -> bool:
-        """True = erledigt (auch wenn der Kanal dauerhaft unerreichbar ist), False = später erneut versuchen."""
+    async def _deliver(self, item: dict) -> tuple[bool, int | None]:
+        """(erledigt, ID der gesendeten Nachricht). erledigt=True auch bei dauerhaft unerreichbarem Ziel,
+        False = später erneut versuchen."""
         try:
             cid = int(item["channel_id"])
         except (KeyError, ValueError):
-            return True
+            return True, None
         if item.get("kind") == "dm":  # Direktnachricht an einen verknüpften Nutzer (channel_id = Discord-Nutzer-ID)
             try:
                 user = self.bot.get_user(cid) or await self.bot.fetch_user(cid)
+                first = None
                 for part in _chunks(item.get("text", "")):
-                    await user.send(part, allowed_mentions=discord.AllowedMentions.none())
-                return True
+                    sent = await user.send(part, allowed_mentions=discord.AllowedMentions.none())
+                    first = first or sent.id
+                return True, first
             except (discord.NotFound, discord.Forbidden):
-                return True  # Nutzer unbekannt oder DMs gesperrt – nicht endlos wiederholen
+                return True, None  # Nutzer unbekannt oder DMs gesperrt – nicht endlos wiederholen
             except discord.HTTPException:
-                return False
+                return False, None
         channel = self.bot.get_channel(cid)
         if channel is None:
             try:
                 channel = await self.bot.fetch_channel(cid)
             except (discord.NotFound, discord.Forbidden):
-                return True
+                return True, None
             except discord.HTTPException:
-                return False
+                return False, None
         text = f"**{item.get('author') or '?'}:** {item.get('text', '')}"
         try:
             for part in _chunks(text):
                 await channel.send(part, allowed_mentions=discord.AllowedMentions.none())
-            return True
+            return True, None
         except discord.Forbidden:
-            return True
+            return True, None
         except discord.HTTPException:
-            return False
+            return False, None
 
     # ── Discord -> Seite ─────────────────────────────────────────────────────
 
@@ -171,7 +181,12 @@ class C2Bridge(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
-        if message.author.bot or message.channel.id not in self._linked:
+        if message.author.bot:
+            return
+        if message.guild is None:
+            await self._handle_dm(message)
+            return
+        if message.channel.id not in self._linked:
             return
         text = message.clean_content
         if message.attachments:
@@ -191,6 +206,33 @@ class C2Bridge(commands.Cog):
         )
         if status == 404:  # Kanal wurde auf der Seite getrennt
             self._linked.discard(message.channel.id)
+
+    async def _handle_dm(self, message: discord.Message) -> None:
+        """Antwort auf eine Benachrichtigungs-DM: Der Nutzer nutzt „Antworten“ auf die Nachricht des Bots."""
+        ref = message.reference
+        if ref is None or not ref.message_id:
+            await message.channel.send(
+                "Um auf eine Benachrichtigung zu antworten, nutze bei der Nachricht „Antworten“ (Rechtsklick bzw. lange drücken)."
+            )
+            return
+        status, data = await self._api(
+            "POST",
+            "/bridge/dm-reply",
+            json={
+                "provider": PROVIDER,
+                "author_id": str(message.author.id),
+                "reply_to": str(ref.message_id),
+                "text": message.clean_content,
+            },
+        )
+        if status == 200:
+            try:
+                await message.add_reaction("✅")
+            except discord.HTTPException:
+                pass
+        else:
+            detail = data.get("detail") if isinstance(data, dict) else None
+            await message.channel.send(f"Antwort nicht übermittelt: {detail or 'Die C2-Seite ist nicht erreichbar.'}")
 
     # ── Befehle ──────────────────────────────────────────────────────────────
 
