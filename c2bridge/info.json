@@ -1,0 +1,11 @@
+{
+  "author": ["Hey Sky"],
+  "name": "c2bridge",
+  "short": "Verbindet Discord-Kanäle mit Gruppen-Chats der SIDC-C2-Seite.",
+  "description": "Zwei-Wege-Brücke zwischen Discord-Kanälen und Gruppen-Chats von SIDC – C2 – Command & Control. Der Bot ruft nur die Seite an (kein offener Port nötig). Konten und Kanäle werden per Einmal-Code verbunden (/c2 link CODE).",
+  "install_msg": "Danach: `[p]c2bridge url <C2-Adresse>`, `[p]c2bridge token <BRIDGE_TOKEN>`, `[p]slash enablecog c2bridge`, `[p]slash sync`. Siehe README.",
+  "min_bot_version": "3.5.0",
+  "requirements": ["aiohttp"],
+  "tags": ["bridge", "sidc", "c2"],
+  "end_user_data_statement": "Speichert nur Adresse und Token der C2-Seite. Nachrichten aus verbundenen Kanälen werden an die C2-Seite übertragen und dort gespeichert."
+}

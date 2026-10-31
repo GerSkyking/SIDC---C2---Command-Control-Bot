@@ -1,0 +1,8 @@
+{
+  "author": ["Hey Sky"],
+  "name": "SIDC C2 Discord Bot",
+  "short": "Red-Cogs für SIDC – C2 – Command & Control.",
+  "description": "Cogs für Red-DiscordBot, die Discord mit der SIDC-C2-Seite verbinden.",
+  "install_msg": "Cog installieren mit `[p]cog install <repo-name> c2bridge`.",
+  "tags": ["sidc", "c2"]
+}
