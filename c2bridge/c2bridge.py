@@ -172,6 +172,8 @@ class C2Bridge(commands.Cog):
     async def c2_link(self, ctx: commands.Context, code: str) -> None:
         """Code von der C2-Seite einlösen (verbindet dein Konto bzw. diesen Kanal)."""
         code = code.strip().upper()
+        # Discord verlangt binnen 3 s eine Rückmeldung; der Aufruf an die Seite kann länger dauern.
+        await ctx.defer(ephemeral=True)
         if ctx.interaction is None:
             # Als Textbefehl wäre der Code öffentlich sichtbar – entfernen (er ist ohnehin einmalig).
             try:
