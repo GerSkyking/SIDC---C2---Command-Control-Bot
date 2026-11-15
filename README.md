@@ -10,11 +10,13 @@ Der Cog `c2bridge` verbindet Discord-Kanäle mit Gruppen-Chats der Seite:
 
 ## Betrieb im Docker-Stack der C2-Seite (empfohlen)
 
-Der Bot ist als Dienst `discord-bot` im `docker-compose.yml` der C2-Seite eingebunden und wird beim `docker compose up -d --build`
-direkt aus diesem Repo gebaut. In der `.env` der C2-Seite genügen:
+Der Bot ist als Dienst `discord-bot` in der `docker-compose.example.yml` der C2-Seite eingebunden (Profil `discord`). Das Image
+`ghcr.io/gerskyking/sidc---c2---command-control-bot` wird bei jedem Release-Tag (`v*`) per GitHub Actions gebaut; die Version steuert
+`BOT_IMAGE_TAG` in der `.env`. Start: `docker compose --profile discord up -d`. In der `.env` der C2-Seite genügen:
 
 ```
 BRIDGE_TOKEN=<langer Zufallswert>
+BOT_IMAGE_TAG=1.0.0
 DISCORD_TOKEN=<Bot-Token aus dem Developer Portal>
 # optional: DISCORD_OWNER_ID, BOT_PREFIX
 ```
